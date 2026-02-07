@@ -172,6 +172,7 @@
     </div>
 
     <script>
+        // --- 1. CONFIGURACIÓN ---
         const medals = [
             { id: 1, name: "Ocio Mayores", icon: "👴" },
             { id: 2, name: "Adaptados", icon: "♿" },
@@ -184,9 +185,12 @@
         const ranks = ['locked', 'bronze', 'silver', 'gold', 'diamond'];
         const rankNames = ['Bloqueado', 'Bronce', 'Plata', 'Oro', 'Diamante'];
         
-        let progress = JSON.parse(localStorage.getItem('urbanProgressFixed')) || {};
+        // --- 2. VARIABLES GLOBALES (AQUÍ ESTABA EL ERROR) ---
+        let progress = JSON.parse(localStorage.getItem('urbanProgressFinal')) || {};
         let currentMedalId = null;
+        let currentBase64Image = null; // <--- ¡ESTA ES LA LÍNEA QUE FALTABA!
 
+        // --- 3. ELEMENTOS DEL DOM ---
         const album = document.getElementById('album');
         const modal = document.getElementById('actionModal');
         const fileInput = document.getElementById('fileInput');
@@ -195,6 +199,7 @@
         const confirmBtn = document.getElementById('confirmBtn');
         const selectPhotoBtn = document.getElementById('selectPhotoBtn');
 
+        // --- 4. FUNCIONES DE RENDERIZADO ---
         function render() {
             album.innerHTML = '';
             medals.forEach(m => {
@@ -220,9 +225,11 @@
             currentMedalId = id;
             document.getElementById('modalTitle').innerText = name;
             
-            // Resetear
+            // Resetear todo
             reasonInput.value = "";
-            fileInput.value = "";
+            fileInput.value = ""; // Limpiar input
+            currentBase64Image = null; // Limpiar memoria imagen anterior
+            
             previewContainer.style.display = 'none';
             confirmBtn.style.display = 'none';
             selectPhotoBtn.style.display = 'flex';
@@ -234,57 +241,70 @@
 
         function closeModal() { modal.style.display = 'none'; }
 
-        // ESTA ES LA CLAVE: Función que fuerza el clic en el input
+        // Truco para activar el input oculto
         function triggerFileClick() {
             document.getElementById('fileInput').click();
         }
 
-        // DETECTAR CAMBIO EN EL ARCHIVO
+        // --- 5. PROCESAMIENTO DE IMAGEN (Compresión) ---
         fileInput.addEventListener('change', function() {
             if (this.files && this.files[0]) {
+                const file = this.files[0];
                 const reader = new FileReader();
+                
                 reader.onload = (e) => {
-                    document.getElementById('preview').src = e.target.result;
-                    previewContainer.style.display = 'block';
+                    const img = new Image();
+                    img.src = e.target.result;
                     
-                    selectPhotoBtn.innerHTML = "🔄 Cambiar Foto";
-                    selectPhotoBtn.style.background = "#222";
-                    confirmBtn.style.display = 'block';
+                    img.onload = () => {
+                        // Crear canvas para reducir tamaño
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 600; // Reducimos a 600px para que no pese
+                        const scaleSize = MAX_WIDTH / img.width;
+                        canvas.width = MAX_WIDTH;
+                        canvas.height = img.height * scaleSize;
+                        
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        
+                        // Guardamos la imagen procesada en la variable GLOBAL
+                        currentBase64Image = canvas.toDataURL('image/jpeg', 0.6);
+                        
+                        // Mostrar preview
+                        document.getElementById('preview').src = currentBase64Image;
+                        previewContainer.style.display = 'block';
+                        
+                        selectPhotoBtn.innerHTML = "🔄 Cambiar Foto";
+                        selectPhotoBtn.style.background = "#222";
+                        confirmBtn.style.display = 'block';
+                    }
                 }
-                reader.readAsDataURL(this.files[0]);
+                reader.readAsDataURL(file);
             }
         });
 
+        // --- 6. ENVÍO A NETLIFY (BACKEND) ---
         async function submitEvidence() {
-            console.log("🔵 1. Botón pulsado. Iniciando función...");
+            console.log("🔵 1. Botón pulsado.");
             
             const text = reasonInput.value.trim();
-            console.log("🔵 2. Texto detectado:", text);
 
-            // Verificación de texto
             if (text.length < 5) {
-                console.warn("⚠️ El texto es muy corto. Deteniendo.");
-                alert("⚠️ Por favor, escribe una razón un poco más larga.");
+                alert("⚠️ Por favor, escribe una razón.");
                 reasonInput.focus();
                 return;
             }
 
-            // Verificación de imagen
-            console.log("🔵 3. Verificando imagen...");
             if (!currentBase64Image) {
-                console.error("❌ ERROR: No hay imagen en la variable currentBase64Image");
-                alert("⚠️ Error interno: La imagen no se procesó bien. Intenta seleccionarla de nuevo.");
+                alert("⚠️ Error: No se ha cargado la imagen correctamente. Intenta seleccionarla de nuevo.");
                 return;
             }
-            console.log("✅ Imagen lista. Longitud de datos:", currentBase64Image.length);
 
-            // Preparando envío
-            confirmBtn.innerHTML = "⏳ Conectando...";
+            confirmBtn.innerHTML = "⏳ Guardando...";
             confirmBtn.disabled = true;
 
             try {
-                console.log("🔵 4. Iniciando FETCH a Netlify Functions...");
-                
+                // Enviar a la función de Netlify
                 const response = await fetch('/.netlify/functions/guardar', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -295,23 +315,20 @@
                     })
                 });
 
-                console.log("🔵 5. Respuesta del servidor recibida. Status:", response.status);
-
                 if (response.ok) {
-                    const data = await response.json();
-                    console.log("✅ ÉXITO TOTAL:", data);
+                    console.log("✅ Guardado en base de datos");
                     levelUp(currentMedalId);
                     closeModal();
-                    alert("✅ ¡Guardado y desbloqueado!");
+                    alert("✅ ¡Evidencia guardada y medalla desbloqueada!");
                 } else {
-                    const errorText = await response.text();
-                    console.error("❌ ERROR DEL SERVIDOR:", response.status, errorText);
-                    alert("❌ Error del servidor: " + response.status);
+                    const err = await response.text();
+                    console.error("Error servidor:", err);
+                    alert("❌ Error al guardar en la nube. Revisa la consola.");
                 }
 
             } catch (error) {
-                console.error("❌ ERROR DE RED O CÓDIGO:", error);
-                alert("❌ Fallo de conexión: " + error.message);
+                console.error("Error red:", error);
+                alert("❌ Error de conexión.");
             } finally {
                 confirmBtn.innerHTML = "✅ Confirmar y Subir";
                 confirmBtn.disabled = false;
@@ -322,19 +339,18 @@
             let lvl = progress[id] || 0;
             if (lvl < 4) lvl++;
             progress[id] = lvl;
-            localStorage.setItem('urbanProgressFixed', JSON.stringify(progress));
+            localStorage.setItem('urbanProgressFinal', JSON.stringify(progress));
             render();
         }
 
         function resetProgress() {
             if(confirm("¿Borrar todo el progreso?")) {
-                localStorage.removeItem('urbanProgressFixed');
+                localStorage.removeItem('urbanProgressFinal');
                 progress = {};
                 render();
             }
         }
 
+        // Iniciar
         render();
     </script>
-</body>
-</html>
