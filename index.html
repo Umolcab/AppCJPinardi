@@ -256,61 +256,37 @@
         });
 
         function submitEvidence() {
-            // VARIABLES GLOBALES PARA LA IMAGEN
-        let currentBase64Image = null;
-
-        // AL SELECCIONAR FOTO (CON REDIMENSIONADO)
-        fileInput.addEventListener('change', function() {
-            if (this.files && this.files[0]) {
-                const file = this.files[0];
-                const reader = new FileReader();
-                
-                reader.onload = (e) => {
-                    // Creamos una imagen temporal para reducirla de tamaño
-                    const img = new Image();
-                    img.src = e.target.result;
-                    
-                    img.onload = () => {
-                        // Crear un lienzo (canvas) para redimensionar
-                        const canvas = document.createElement('canvas');
-                        const MAX_WIDTH = 800; // Máximo 800px de ancho
-                        const scaleSize = MAX_WIDTH / img.width;
-                        canvas.width = MAX_WIDTH;
-                        canvas.height = img.height * scaleSize;
-                        
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        
-                        // Convertir a texto comprimido (JPEG calidad 0.7)
-                        currentBase64Image = canvas.toDataURL('image/jpeg', 0.7);
-                        
-                        // Mostrar preview
-                        document.getElementById('preview').src = currentBase64Image;
-                        previewContainer.style.display = 'block';
-                        
-                        selectPhotoBtn.innerHTML = "🔄 Cambiar Foto";
-                        selectPhotoBtn.style.background = "#222";
-                        confirmBtn.style.display = 'block';
-                    }
-                }
-                reader.readAsDataURL(file);
-            }
-        });
-
-        // AL PULSAR CONFIRMAR - CONEXIÓN CON NEON
+            // --- SUSTITUYE TU FUNCIÓN submitEvidence POR ESTA ---
         async function submitEvidence() {
-            const text = reasonInput.value.trim();
+            console.log("🔵 1. Botón pulsado. Iniciando función...");
             
+            const text = reasonInput.value.trim();
+            console.log("🔵 2. Texto detectado:", text);
+
+            // Verificación de texto
             if (text.length < 5) {
-                alert("⚠️ Escribe una razón.");
+                console.warn("⚠️ El texto es muy corto. Deteniendo.");
+                alert("⚠️ Por favor, escribe una razón un poco más larga.");
+                reasonInput.focus();
                 return;
             }
 
-            confirmBtn.innerHTML = "⏳ Guardando en la nube...";
+            // Verificación de imagen
+            console.log("🔵 3. Verificando imagen...");
+            if (!currentBase64Image) {
+                console.error("❌ ERROR: No hay imagen en la variable currentBase64Image");
+                alert("⚠️ Error interno: La imagen no se procesó bien. Intenta seleccionarla de nuevo.");
+                return;
+            }
+            console.log("✅ Imagen lista. Longitud de datos:", currentBase64Image.length);
+
+            // Preparando envío
+            confirmBtn.innerHTML = "⏳ Conectando...";
             confirmBtn.disabled = true;
 
             try {
-                // 1. Enviamos los datos a TU función de Netlify
+                console.log("🔵 4. Iniciando FETCH a Netlify Functions...");
+                
                 const response = await fetch('/.netlify/functions/guardar', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -321,18 +297,23 @@
                     })
                 });
 
+                console.log("🔵 5. Respuesta del servidor recibida. Status:", response.status);
+
                 if (response.ok) {
-                    // 2. Si la base de datos dice OK, actualizamos el móvil
+                    const data = await response.json();
+                    console.log("✅ ÉXITO TOTAL:", data);
                     levelUp(currentMedalId);
                     closeModal();
-                    alert("✅ ¡Guardado en la Base de Datos segura!");
+                    alert("✅ ¡Guardado y desbloqueado!");
                 } else {
-                    alert("❌ Error al guardar en la nube.");
+                    const errorText = await response.text();
+                    console.error("❌ ERROR DEL SERVIDOR:", response.status, errorText);
+                    alert("❌ Error del servidor: " + response.status);
                 }
 
             } catch (error) {
-                console.error(error);
-                alert("❌ Error de conexión.");
+                console.error("❌ ERROR DE RED O CÓDIGO:", error);
+                alert("❌ Fallo de conexión: " + error.message);
             } finally {
                 confirmBtn.innerHTML = "✅ Confirmar y Subir";
                 confirmBtn.disabled = false;
