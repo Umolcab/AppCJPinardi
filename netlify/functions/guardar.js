@@ -5,7 +5,7 @@ if (!process.env.DATABASE_URL) {
   console.error("❌ ERROR CRÍTICO: No existe la variable DATABASE_URL");
 }
 
-const sql = postgres(process.env.DATABASE_URL, {
+const sql = postgres(process.env.NETLIFY_DATABASE_URL, {
   ssl: 'require'
 });
 
