@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Imágenes</title>
+    <style>
+        body { font-family: sans-serif; background: #222; color: white; padding: 20px; }
+        h1 { text-align: center; border-bottom: 1px solid #444; padding-bottom: 20px; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .card {
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #555;
+            padding: 10px;
+        }
+
+        img {
+            width: 100%;
+            height: auto;
+            border-radius: 5px;
+            display: block;
+        }
+
+        .info {
+            padding-top: 10px;
+        }
+        .razon { font-weight: bold; color: #ffeb3b; margin-bottom: 5px; }
+        .fecha { font-size: 0.8rem; color: #888; }
+        .medalla { 
+            display: inline-block; 
+            background: #444; 
+            padding: 3px 8px; 
+            border-radius: 4px; 
+            font-size: 0.8rem; 
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📸 Galería de Incidencias</h1>
+    <div id="gallery" class="grid">Cargando datos...</div>
+
+    <script>
+        async function cargarFotos() {
+            const galeria = document.getElementById('gallery');
+            
+            try {
+                // Llamamos a la función nueva
+                const respuesta = await fetch('/.netlify/functions/leer');
+                const datos = await respuesta.json();
+
+                if (!respuesta.ok) throw new Error("Error al leer");
+
+                galeria.innerHTML = ''; // Limpiar mensaje de carga
+
+                if (datos.length === 0) {
+                    galeria.innerHTML = '<p>No hay fotos todavía.</p>';
+                    return;
+                }
+
+                // Generar tarjetas
+                datos.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    
+                    // Convertir fecha fea a bonita
+                    const fecha = new Date(item.fecha).toLocaleString();
+
+                    // Mapear ID de medalla a nombre (opcional)
+                    const nombres = ["", "Mayores", "Adaptados", "Sostenibles", "Desperfectos", "Señales", "Vandalismo"];
+                    const nombreMedalla = nombres[item.medalla_id] || "Desconocido";
+
+                    card.innerHTML = `
+                        <img src="${item.imagen}" alt="Evidencia">
+                        <div class="info">
+                            <div class="razon">"${item.razon}"</div>
+                            <div class="medalla">🏅 ${nombreMedalla}</div>
+                            <div class="fecha">📅 ${fecha}</div>
+                        </div>
+                    `;
+                    galeria.appendChild(card);
+                });
+
+            } catch (error) {
+                galeria.innerHTML = '<p style="color:red">Error al cargar las imágenes.</p>';
+                console.error(error);
+            }
+        }
+
+        // Cargar al iniciar
+        cargarFotos();
+    </script>
+
+</body>
+</html>
